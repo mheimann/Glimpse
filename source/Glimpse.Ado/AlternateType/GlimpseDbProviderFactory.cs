@@ -10,18 +10,18 @@ namespace Glimpse.Ado.AlternateType
 
     public class GlimpseDbProviderFactory<TProviderFactory> : GlimpseDbProviderFactory, IServiceProvider
         where TProviderFactory : DbProviderFactory
-    {   
+    {
         public static readonly GlimpseDbProviderFactory<TProviderFactory> Instance = new GlimpseDbProviderFactory<TProviderFactory>();
         
         public GlimpseDbProviderFactory()
-        {            
+        {
             var field = typeof(TProviderFactory).GetField("Instance", BindingFlags.Public | BindingFlags.Static);
             if (field == null)
             {
                 throw new NotSupportedException("Provider doesn't have Instance property.");
             }
 
-            InnerFactory = (TProviderFactory)field.GetValue(null);           
+            InnerFactory = (TProviderFactory)field.GetValue(null);
         }
 
         private TProviderFactory InnerFactory { get; set; }
@@ -92,11 +92,18 @@ namespace Glimpse.Ado.AlternateType
                     type = Type.GetType("Glimpse.EF.AlternateType.GlimpseDbProviderServices, Glimpse.EF6", false);
                 }
 
+#if NET35
+                if (type == null)
+                {
+                    type = Type.GetType("Glimpse.EF.AlternateType.GlimpseDbProviderServices, Glimpse.EF1", false);
+                }
+#endif
+
                 if (type != null)
                 {
                     return Activator.CreateInstance(type, service);
-                } 
-                
+                }
+
                 throw new NotSupportedException(Resources.GlimpseEFNotPresent);  
             }
 
