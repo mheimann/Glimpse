@@ -1,7 +1,6 @@
 ﻿#if EF43 || EF5 || EF1
     using System.Data.Common;
-#endif
-#if EF6
+#else
     using System.Data.Entity.Core.Common;
     using DbCommand = System.Data.Common.DbCommand;
 #endif
