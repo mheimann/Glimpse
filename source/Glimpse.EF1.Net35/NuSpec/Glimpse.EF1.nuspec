@@ -26,8 +26,7 @@ Middleweight release for EF:
         <file src="tools\*.*" target="tools" />
         <file src="lib\net35\*.*" target="lib\net35" />  
         <!--<file src="readme.txt" target="readme.txt" />-->
-        <file src="..\..\Glimpse.EF\AlternateType\GlimpseDbCommandDefinition.cs" target="src" />
-        <file src="..\..\Glimpse.EF1\AlternateType\GlimpseDbProviderServices.cs" target="src" />
+        <file src="..\..\Glimpse.EF\**\*.cs" target="src" />
         <file src="..\..\Glimpse.EF\Resources.resx" target="src" />
     </files>
 </package>
