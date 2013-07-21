@@ -10,9 +10,31 @@ using System.Web;
 using System.Web.Mvc;
 using Dapper;
 using MvcMusicStore.Models;
+using Glimpse.Ado.AlternateType;
+using System.Reflection;
 
 namespace MvcMusicStore.Controllers
 {
+    public static class DbCommandExtensions
+    {
+        public static DbCommand AddParameter(this DbCommand source, string parameterName, string sourceColumn, DbType parameterType, DataRowVersion sourceVersion = DataRowVersion.Default, int fieldSize = 0)
+        {
+            DbParameter parameter = source.CreateParameter();
+
+            parameter.ParameterName = parameterName;
+            parameter.DbType = parameterType;
+            parameter.SourceColumn = sourceColumn;
+            parameter.SourceVersion = sourceVersion;
+
+            if (fieldSize > 0)
+                parameter.Size = fieldSize;
+
+            source.Parameters.Add(parameter);
+
+            return source; // Allow chaining
+        }
+    }
+
     public class HomeController : Controller
     {
         //
@@ -44,8 +66,108 @@ namespace MvcMusicStore.Controllers
             ts.TraceEvent(TraceEventType.Warning, 0, string.Format("{0}: {1}", "trace", "source"));
 
             GetAllAlbums();
+            UpdateSomeAlbums();
 
             return View(albums);
+        }
+
+        private void UpdateSomeAlbums()
+        {
+            var connectionString = ConfigurationManager.ConnectionStrings["MusicStoreEntities"];
+            var factory = DbProviderFactories.GetFactory(connectionString.ProviderName);
+
+            using (var connection = factory.CreateConnection())
+            {
+                connection.ConnectionString = connectionString.ConnectionString;
+                connection.Open();
+
+                using (var tx = connection.BeginTransaction())
+                {
+                    using (var cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT * FROM Albums";
+
+                        DbDataAdapter dbAdapter = factory.CreateDataAdapter();
+                        dbAdapter.SelectCommand = cmd;
+
+                        // Build modification queries
+                        DbCommandBuilder cmdBuilder = factory.CreateCommandBuilder();
+
+                        #region This is a total MacGyver HACK
+                        PropertyInfo innerDataAdapterProperty = typeof(GlimpseDbDataAdapter).GetProperty("InnerDataAdapter", BindingFlags.NonPublic | BindingFlags.Instance);
+                        var innerAdapter = (DbDataAdapter)innerDataAdapterProperty.GetValue(dbAdapter, null);
+                        innerAdapter.SelectCommand = cmd;
+                        #endregion
+
+                        cmdBuilder.DataAdapter = innerAdapter;
+
+                        dbAdapter.InsertCommand = cmdBuilder.GetInsertCommand(true);
+                        // The command builder creates an invalid queries for some reason!?
+                        //dbAdapter.DeleteCommand = cmdBuilder.GetDeleteCommand(true);
+                        //dbAdapter.UpdateCommand = cmdBuilder.GetUpdateCommand(true);
+
+                        var updateCommand = connection.CreateCommand();
+                        updateCommand.CommandText =
+                            @"UPDATE [Albums] SET [GenreId] = @GenreId, [ArtistId] = @ArtistId, [Title] = @Title, [Price] = @Price, [AlbumArtUrl] = @AlbumArtUrl WHERE ([AlbumId] = @AlbumId)";
+
+                        updateCommand
+                            .AddParameter("@GenreId", "GenreId", DbType.Int32)
+                            .AddParameter("@ArtistId", "ArtistId", DbType.Int32)
+                            .AddParameter("@Title", "Title", DbType.String, fieldSize: 160)
+                            .AddParameter("@Price", "Price", DbType.Decimal, fieldSize: 9)
+                            .AddParameter("@AlbumArtUrl", "AlbumArtUrl", DbType.String, fieldSize: 1024)
+                            .AddParameter("@AlbumId", "AlbumId", DbType.Int32, sourceVersion: DataRowVersion.Original);
+
+                        dbAdapter.UpdateCommand = updateCommand;
+
+                        var deleteCommand = connection.CreateCommand();
+                        deleteCommand.CommandText = @"DELETE FROM [Albums] WHERE [AlbumId] = @AlbumId";
+
+                        deleteCommand
+                            .AddParameter("@AlbumId", "AlbumId", DbType.Int32, sourceVersion: DataRowVersion.Original);
+
+                        dbAdapter.DeleteCommand = deleteCommand;
+
+                        DataTable dataTable = new DataTable();
+                        dbAdapter.Fill(dataTable);
+
+                        #region Insert
+                        DataRow newAlbum = dataTable.NewRow();
+                        newAlbum["GenreId"] = 7; // Metal
+                        newAlbum["ArtistId"] = 21; // Black Sabbath
+                        newAlbum["Title"] = "The fictional album";
+                        newAlbum["Price"] = 8.99;
+                        newAlbum["AlbumArtUrl"] = "/Content/Images/placeholder.gif";
+                        dataTable.Rows.Add(newAlbum);
+
+                        dbAdapter.Update(dataTable);
+                        #endregion
+
+                        #region Update
+                        DataRow[] updateRows = dataTable.Select("ArtistId = 20");
+                        foreach (var album in updateRows)
+                        {
+                            album["Price"] = 6.99;
+                        }
+
+                        dbAdapter.Update(dataTable);                        
+                        #endregion
+
+                        #region Delete
+                        // Delete all "The Doors" albums (ArtistId 120) because they're sold out *cough*
+                        DataRow[] deleteRows = dataTable.Select("ArtistId = 120");
+                        foreach (var album in deleteRows)
+                        {
+                            album.Delete();
+                        }
+
+                        dbAdapter.Update(dataTable);
+                        #endregion
+                    }
+
+                    tx.Rollback(); // Rollback everything since we don't want to really change any data
+                }
+            }
         }
 
         [NoCache]
@@ -92,7 +214,7 @@ namespace MvcMusicStore.Controllers
                     IDbDataAdapter dbAdapter = factory.CreateDataAdapter(); //dbAdapter: {System.Data.SqlClient.SqlDataAdapter} not GlimpseDbDataAdapter 
                     dbAdapter.SelectCommand = cmd;
 
-                    dbAdapter.Fill(ds); 
+                    dbAdapter.Fill(ds);
                 } 
             }
 
