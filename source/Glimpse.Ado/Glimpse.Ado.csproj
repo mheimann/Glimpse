@@ -42,6 +42,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AlternateType\GlimpseDbCommandBuilder.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="AlternateType\Support.cs" />
     <Compile Include="Display\SqlDisplay.cs" />
     <Compile Include="Extensibility\ICommandParameterParser.cs" />

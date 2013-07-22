@@ -53,6 +53,11 @@
       </Link>
       <SubType>Component</SubType>
     </Compile>
+	<Compile Include="..\Glimpse.Ado\AlternateType\GlimpseDbCommandBuilder.cs">
+      <Link>
+      </Link>
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="..\Glimpse.Ado\AlternateType\GlimpseDbConnection.cs">
       <Link>
       </Link>

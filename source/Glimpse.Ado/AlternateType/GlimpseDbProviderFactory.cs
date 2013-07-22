@@ -38,7 +38,7 @@ namespace Glimpse.Ado.AlternateType
 
         public override DbCommandBuilder CreateCommandBuilder()
         {
-            return InnerFactory.CreateCommandBuilder();
+            return new GlimpseDbCommandBuilder(InnerFactory.CreateCommandBuilder());
         }
 
         public override DbConnection CreateConnection()

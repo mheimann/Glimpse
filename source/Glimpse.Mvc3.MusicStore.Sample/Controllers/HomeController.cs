@@ -66,12 +66,12 @@ namespace MvcMusicStore.Controllers
             ts.TraceEvent(TraceEventType.Warning, 0, string.Format("{0}: {1}", "trace", "source"));
 
             GetAllAlbums();
-            UpdateSomeAlbums();
+            UpdateAlbums();
 
             return View(albums);
         }
 
-        private void UpdateSomeAlbums()
+        private void UpdateAlbums()
         {
             var connectionString = ConfigurationManager.ConnectionStrings["MusicStoreEntities"];
             var factory = DbProviderFactories.GetFactory(connectionString.ProviderName);
@@ -99,7 +99,8 @@ namespace MvcMusicStore.Controllers
                         innerAdapter.SelectCommand = cmd;
                         #endregion
 
-                        cmdBuilder.DataAdapter = innerAdapter;
+                        //cmdBuilder.DataAdapter = innerAdapter;
+                        cmdBuilder.DataAdapter = dbAdapter;
 
                         dbAdapter.InsertCommand = cmdBuilder.GetInsertCommand(true);
                         // The command builder creates an invalid queries for some reason!?

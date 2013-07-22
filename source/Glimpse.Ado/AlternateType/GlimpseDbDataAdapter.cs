@@ -11,7 +11,7 @@ namespace Glimpse.Ado.AlternateType
             InnerDataAdapter = innerDataAdapter;
         }
 
-        private DbDataAdapter InnerDataAdapter { get; set; }
+        internal DbDataAdapter InnerDataAdapter { get; private set; }
 
         public override bool ReturnProviderSpecificTypes
         {
