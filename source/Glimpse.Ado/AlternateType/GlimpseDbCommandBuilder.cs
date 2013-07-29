@@ -12,10 +12,6 @@ namespace Glimpse.Ado.AlternateType
     public class GlimpseDbCommandBuilder : DbCommandBuilder
     {
         private static readonly PropertyInfo canRaiseEventsProperty;
-        private static readonly PropertyInfo catalogLocationProperty;
-        private static readonly PropertyInfo catalogSeparatorProperty;
-        private static readonly PropertyInfo conflictOptionProperty;
-
         private static readonly MethodInfo applyParameterInfoMethod;
         private static readonly MethodInfo getParameterNameMethod1;
         private static readonly MethodInfo getParameterNameMethod2;
@@ -29,28 +25,25 @@ namespace Glimpse.Ado.AlternateType
         {
             Type type = typeof(DbCommandBuilder);
 
-            BindingFlags defaultBinding = BindingFlags.Instance | BindingFlags.NonPublic;
+            BindingFlags bindings = BindingFlags.Instance | BindingFlags.NonPublic;
         
             // Properties
-            canRaiseEventsProperty = type.GetProperty("CanRaiseEvents", defaultBinding);
-            catalogLocationProperty = type.GetProperty("CatalogLocation", defaultBinding | BindingFlags.SetProperty);
-            catalogSeparatorProperty = type.GetProperty("CatalogSeparator", defaultBinding | BindingFlags.SetProperty);
-            conflictOptionProperty = type.GetProperty("ConflictOption", defaultBinding | BindingFlags.SetProperty);
+            canRaiseEventsProperty = type.GetProperty("CanRaiseEvents", bindings);
 
             // Methods
-            applyParameterInfoMethod = type.GetMethod("ApplyParameterInfo", defaultBinding);
+            applyParameterInfoMethod = type.GetMethod("ApplyParameterInfo", bindings);
 
-            getParameterNameMethod1 = type.GetMethod("GetParameterName", defaultBinding, 
+            getParameterNameMethod1 = type.GetMethod("GetParameterName", bindings, 
                 Type.DefaultBinder, CallingConventions.Any, new Type[] { typeof(int) }, null);
 
-            getParameterNameMethod2 = type.GetMethod("GetParameterName", defaultBinding,
+            getParameterNameMethod2 = type.GetMethod("GetParameterName", bindings,
                 Type.DefaultBinder, CallingConventions.Any, new Type[] { typeof(string) }, null);
 
-            getParameterPlaceholderMethod = type.GetMethod("GetParameterPlaceholder", defaultBinding);
-            getSchemaTableMethod = type.GetMethod("GetSchemaTable", defaultBinding);
-            getServiceMethod = type.GetMethod("GetService", defaultBinding);
-            initializeCommandMethod = type.GetMethod("InitializeCommand", defaultBinding);
-            setRowUpdatingHandlerMethod = type.GetMethod("SetRowUpdatingHandler", defaultBinding);
+            getParameterPlaceholderMethod = type.GetMethod("GetParameterPlaceholder", bindings);
+            getSchemaTableMethod = type.GetMethod("GetSchemaTable", bindings);
+            getServiceMethod = type.GetMethod("GetService", bindings);
+            initializeCommandMethod = type.GetMethod("InitializeCommand", bindings);
+            setRowUpdatingHandlerMethod = type.GetMethod("SetRowUpdatingHandler", bindings);
         }
 
         private DbCommandBuilder InnerCommandBuilder { get; set; }
@@ -149,7 +142,11 @@ namespace Glimpse.Ado.AlternateType
 
         protected override DbCommand InitializeCommand(DbCommand command)
         {
-            InnerCommandBuilder.DataAdapter = ((GlimpseDbDataAdapter) DataAdapter).InnerDataAdapter;
+            var innerDataAdapter = ((GlimpseDbDataAdapter) DataAdapter).InnerDataAdapter;
+            innerDataAdapter.SelectCommand = DataAdapter.SelectCommand;
+
+            InnerCommandBuilder.DataAdapter = innerDataAdapter;
+            
             return (DbCommand)initializeCommandMethod.Invoke(InnerCommandBuilder, new object[] { command });
         }
 
@@ -229,6 +226,11 @@ namespace Glimpse.Ado.AlternateType
         public override string UnquoteIdentifier(string quotedIdentifier)
         {
             return InnerCommandBuilder.UnquoteIdentifier(quotedIdentifier);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            InnerCommandBuilder.Dispose();
         }
     }
 }

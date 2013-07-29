@@ -94,12 +94,13 @@ namespace MvcMusicStore.Controllers
                         DbCommandBuilder cmdBuilder = factory.CreateCommandBuilder();
 
                         #region This is a total MacGyver HACK
-                        PropertyInfo innerDataAdapterProperty = typeof(GlimpseDbDataAdapter).GetProperty("InnerDataAdapter", BindingFlags.NonPublic | BindingFlags.Instance);
-                        var innerAdapter = (DbDataAdapter)innerDataAdapterProperty.GetValue(dbAdapter, null);
-                        innerAdapter.SelectCommand = cmd;
+                        //PropertyInfo innerDataAdapterProperty = typeof(GlimpseDbDataAdapter).GetProperty("InnerDataAdapter", BindingFlags.NonPublic | BindingFlags.Instance);
+                        //var innerAdapter = (DbDataAdapter)innerDataAdapterProperty.GetValue(dbAdapter, null);
+                        //innerAdapter.SelectCommand = cmd;
                         #endregion
 
                         //cmdBuilder.DataAdapter = innerAdapter;
+                        dbAdapter.SelectCommand = cmd;
                         cmdBuilder.DataAdapter = dbAdapter;
 
                         dbAdapter.InsertCommand = cmdBuilder.GetInsertCommand(true);
@@ -129,8 +130,10 @@ namespace MvcMusicStore.Controllers
 
                         dbAdapter.DeleteCommand = deleteCommand;
 
-                        DataTable dataTable = new DataTable();
-                        dbAdapter.Fill(dataTable);
+                        DataSet dataSet = new DataSet();
+                        dbAdapter.Fill(dataSet);
+
+                        DataTable dataTable = dataSet.Tables[0];
 
                         #region Insert
                         DataRow newAlbum = dataTable.NewRow();
@@ -141,7 +144,8 @@ namespace MvcMusicStore.Controllers
                         newAlbum["AlbumArtUrl"] = "/Content/Images/placeholder.gif";
                         dataTable.Rows.Add(newAlbum);
 
-                        dbAdapter.Update(dataTable);
+                        //dbAdapter.Update(dataTable);
+                        dbAdapter.Update(dataSet);
                         #endregion
 
                         #region Update
@@ -151,18 +155,18 @@ namespace MvcMusicStore.Controllers
                             album["Price"] = 6.99;
                         }
 
-                        dbAdapter.Update(dataTable);                        
+                        dbAdapter.Update(dataSet);                        
                         #endregion
 
                         #region Delete
-                        // Delete all "The Doors" albums (ArtistId 120) because they're sold out *cough*
-                        DataRow[] deleteRows = dataTable.Select("ArtistId = 120");
+                        // Delete all "The Police" albums (ArtistId 122) because they're sold out *cough*
+                        DataRow[] deleteRows = dataTable.Select("ArtistId = 122");
                         foreach (var album in deleteRows)
                         {
                             album.Delete();
                         }
 
-                        dbAdapter.Update(dataTable);
+                        dbAdapter.Update(dataSet);
                         #endregion
                     }
 
