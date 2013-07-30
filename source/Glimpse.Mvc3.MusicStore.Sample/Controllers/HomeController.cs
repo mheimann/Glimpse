@@ -10,9 +10,30 @@ using System.Web;
 using System.Web.Mvc;
 using Dapper;
 using MvcMusicStore.Models;
+using Glimpse.Ado.AlternateType;
 
 namespace MvcMusicStore.Controllers
 {
+    public static class DbCommandExtensions
+    {
+        public static DbCommand AddParameter(this DbCommand source, string parameterName, string sourceColumn, DbType parameterType, DataRowVersion sourceVersion = DataRowVersion.Default, int fieldSize = 0)
+        {
+            DbParameter parameter = source.CreateParameter();
+
+            parameter.ParameterName = parameterName;
+            parameter.DbType = parameterType;
+            parameter.SourceColumn = sourceColumn;
+            parameter.SourceVersion = sourceVersion;
+
+            if (fieldSize > 0)
+                parameter.Size = fieldSize;
+
+            source.Parameters.Add(parameter);
+
+            return source; // Allow chaining
+        }
+    }
+
     public class HomeController : Controller
     {
         //
@@ -24,7 +45,9 @@ namespace MvcMusicStore.Controllers
         {
             // Get most popular albums
             var albums = GetTopSellingAlbums(5);
-            var albumCount = GetTotalAlbumns();
+            var albumCount = GetTotalAlbums();
+
+            UpdateSomeAlbums();
 
             Trace.Write(string.Format("Total number of Albums = {0} and Albums with 'The' = {1}", albumCount.Item1, albumCount.Item2));
             Trace.Write("Got top 5 albums");
@@ -101,7 +124,7 @@ namespace MvcMusicStore.Controllers
             return rowcount; 
         }
 
-        private Tuple<int, int> GetTotalAlbumns()
+        private Tuple<int, int> GetTotalAlbums()
         {
             var result1 = 0;
             var result2 = 0;
@@ -195,7 +218,7 @@ namespace MvcMusicStore.Controllers
                 {
                     command.CommandText = "SELECT * FROM Albums WHERE Title LIKE 'I%'";
                     command.CommandType = CommandType.Text;
-                    var result = command.ExecuteReader();
+                    var result = command.ExecuteScalar();
                 }
 
                 using (var scope = new TransactionScope(TransactionScopeOption.RequiresNew))
@@ -204,7 +227,7 @@ namespace MvcMusicStore.Controllers
                     {
                         command.CommandText = "SELECT * FROM Albums WHERE Title LIKE 'J%'";
                         command.CommandType = CommandType.Text;
-                        var result = command.ExecuteReader();
+                        var result = command.ExecuteScalar();
                     }
 
                     scope.Complete();
@@ -217,6 +240,109 @@ namespace MvcMusicStore.Controllers
 
 
             return new Tuple<int, int>(result1, result2);
+        }
+
+        private void UpdateSomeAlbums()
+        {
+            var connectionString = ConfigurationManager.ConnectionStrings["MusicStoreEntities"];
+            var factory = DbProviderFactories.GetFactory(connectionString.ProviderName);
+
+            using (var connection = factory.CreateConnection())
+            {
+                connection.ConnectionString = connectionString.ConnectionString;
+                connection.Open();
+
+                using (var tx = connection.BeginTransaction())
+                {
+                    using (var cmd = connection.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT * FROM Albums";
+                        cmd.Transaction = tx;
+
+                        DbDataAdapter dbAdapter = factory.CreateDataAdapter();
+                        dbAdapter.SelectCommand = cmd;
+
+                        DataSet dataSet = new DataSet();
+
+                        dbAdapter.FillSchema(dataSet, SchemaType.Source);
+
+                        var insertCommand = connection.CreateCommand();
+                        insertCommand.CommandText =
+                            @"INSERT INTO [Albums] ([GenreId], [ArtistId], [Title], [Price], [AlbumArtUrl]) VALUES (@GenreId, @ArtistId, @Title, @Price, @AlbumArtUrl)";
+                        insertCommand.Transaction = tx;
+                        insertCommand
+                            .AddParameter("@GenreId", "GenreId", DbType.Int32)
+                            .AddParameter("@ArtistId", "ArtistId", DbType.Int32)
+                            .AddParameter("@Title", "Title", DbType.String, fieldSize: 160)
+                            .AddParameter("@Price", "Price", DbType.Decimal, fieldSize: 9)
+                            .AddParameter("@AlbumArtUrl", "AlbumArtUrl", DbType.String, fieldSize: 1024);                        
+
+                        dbAdapter.InsertCommand = insertCommand;
+
+                        var updateCommand = connection.CreateCommand();
+                        updateCommand.CommandText =
+                            @"UPDATE [Albums] SET [GenreId] = @GenreId, [ArtistId] = @ArtistId, [Title] = @Title, [Price] = @Price, [AlbumArtUrl] = @AlbumArtUrl WHERE ([AlbumId] = @AlbumId)";
+                        updateCommand.Transaction = tx;
+
+                        updateCommand
+                            .AddParameter("@GenreId", "GenreId", DbType.Int32)
+                            .AddParameter("@ArtistId", "ArtistId", DbType.Int32)
+                            .AddParameter("@Title", "Title", DbType.String, fieldSize: 160)
+                            .AddParameter("@Price", "Price", DbType.Decimal, fieldSize: 9)
+                            .AddParameter("@AlbumArtUrl", "AlbumArtUrl", DbType.String, fieldSize: 1024)
+                            .AddParameter("@AlbumId", "AlbumId", DbType.Int32, sourceVersion: DataRowVersion.Original);
+
+                        dbAdapter.UpdateCommand = updateCommand;
+
+                        var deleteCommand = connection.CreateCommand();
+                        deleteCommand.CommandText = @"DELETE FROM [Albums] WHERE [AlbumId] = @AlbumId";
+                        deleteCommand.Transaction = tx;
+
+                        deleteCommand
+                            .AddParameter("@AlbumId", "AlbumId", DbType.Int32, sourceVersion: DataRowVersion.Original);
+
+                        dbAdapter.DeleteCommand = deleteCommand;
+
+                        dbAdapter.Fill(dataSet);
+                        DataTable dataTable = dataSet.Tables[0];
+
+                        #region Insert
+                        DataRow newAlbum = dataTable.NewRow();
+                        newAlbum["GenreId"] = 7; // Metal
+                        newAlbum["ArtistId"] = 21; // Black Sabbath
+                        newAlbum["Title"] = "The fictional album";
+                        newAlbum["Price"] = 8.99;
+                        newAlbum["AlbumArtUrl"] = "/Content/Images/placeholder.gif";
+                        dataTable.Rows.Add(newAlbum);
+
+                        dbAdapter.Update(dataSet);
+                        #endregion
+
+                        #region Update
+                        DataRow[] updateRows = dataTable.Select("ArtistId = 20");
+                        foreach (var album in updateRows)
+                        {
+                            album["Price"] = 6.99;
+                        }
+
+                        dbAdapter.Update(dataSet);
+                        #endregion
+
+                        #region Delete
+                        // Delete all "The Doors" albums (ArtistId 120) because they're sold out *cough*
+                        DataRow[] deleteRows = dataTable.Select("ArtistId = 120");
+                        foreach (var album in deleteRows)
+                        {
+                            album.Delete();
+                        }
+
+                        dbAdapter.Update(dataSet);
+                        #endregion
+                    }
+
+                    tx.Rollback(); // Rollback everything since we don't want to really change any data
+                }
+            }
         }
 
         [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
