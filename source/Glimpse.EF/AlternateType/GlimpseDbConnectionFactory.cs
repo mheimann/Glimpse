@@ -1,7 +1,7 @@
 ﻿#if !EF1
 using System.Data.Common;
 using System.Data.Entity.Infrastructure;
-using Glimpse.Ado.AlternateType;
+using Glimpse.Ado.AlternateType;  
 
 namespace Glimpse.EF.AlternateType
 {

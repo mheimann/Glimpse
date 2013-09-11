@@ -2,7 +2,7 @@
 #if EF43 || EF5 || EF1
     using System.Data.Common;
     using System.Data.Common.CommandTrees;
-    using System.Data.Metadata.Edm;
+    using System.Data.Metadata.Edm;  
 #else
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.CommandTrees;

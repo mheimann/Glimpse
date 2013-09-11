@@ -10,18 +10,18 @@ namespace Glimpse.Ado.AlternateType
 
     public class GlimpseDbProviderFactory<TProviderFactory> : GlimpseDbProviderFactory, IServiceProvider
         where TProviderFactory : DbProviderFactory
-    {
+    {   
         public static readonly GlimpseDbProviderFactory<TProviderFactory> Instance = new GlimpseDbProviderFactory<TProviderFactory>();
         
         public GlimpseDbProviderFactory()
-        {
+        {            
             var field = typeof(TProviderFactory).GetField("Instance", BindingFlags.Public | BindingFlags.Static);
             if (field == null)
             {
                 throw new NotSupportedException("Provider doesn't have Instance property.");
             }
 
-            InnerFactory = (TProviderFactory)field.GetValue(null);
+            InnerFactory = (TProviderFactory)field.GetValue(null);           
         }
 
         private TProviderFactory InnerFactory { get; set; }
